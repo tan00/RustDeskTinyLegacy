@@ -62,6 +62,7 @@ This identity is deliberately separate from `RustDesk` and `RustDeskTiny`.
 | `flutter/lib/models/server_model.dart` | Makes periodic password synchronization read-only so focus and polling cannot rotate the password. |
 | `flutter/lib/models/peer_tab_model.dart` | Disables discovery for the direct-only product. |
 | `flutter/lib/desktop/pages/desktop_tab_page.dart` | Keeps the settings entry available in Tiny mode even when the 1.3.7 executable mode is incoming-only. |
+| `flutter/lib/desktop/widgets/tabbar_widget.dart` | Keeps the Tiny settings action visible when the Win7 compatible UI would normally hide its single-tab title bar. |
 | `flutter/lib/generated_bridge.dart`, `flutter/lib/generated_bridge.freezed.dart`, `src/bridge_generated.rs`, `src/bridge_generated.io.rs` | Frozen generated bridge sources for the pinned Flutter/Dart toolchain. |
 | `flutter/windows/runner/Runner.rc`, `flutter/windows/runner/main.cpp` | Apply Legacy identity to Windows version resources and the runner fallback application name. |
 
