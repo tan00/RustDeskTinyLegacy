@@ -1,10 +1,11 @@
 use std::net::SocketAddr;
 
-use hbb_common::{config, tokio};
+use hbb_common::{config, password_security, tokio};
 
 pub const ADDRESS_ENV: &str = "RUSTDESK_TINY_LEGACY_ADDRESS";
 pub const LISTEN_ENV: &str = "RUSTDESK_TINY_LEGACY_LISTEN";
 pub const DIRECT_ONLY_ENV: &str = "RUSTDESK_TINY_LEGACY_DIRECT_ONLY";
+const TEMPORARY_PASSWORD_OPTION: &str = "tiny-temporary-password";
 
 const CONNECTION_COMMANDS: &[&str] = &[
     "--connect",
@@ -18,6 +19,7 @@ const CONNECTION_COMMANDS: &[&str] = &[
 pub fn initialize() {
     std::env::set_var(DIRECT_ONLY_ENV, "1");
     *config::APP_NAME.write().unwrap() = "RustDeskTinyLegacy".to_owned();
+    initialize_temporary_password();
     let mut hard = config::HARD_SETTINGS.write().unwrap();
     hard.insert("rustdesk-tiny".to_owned(), "Y".to_owned());
     hard.insert("disable-account".to_owned(), "Y".to_owned());
@@ -34,6 +36,32 @@ pub fn initialize() {
     ] {
         builtin.insert(key.to_owned(), "Y".to_owned());
     }
+}
+
+fn initialize_temporary_password() {
+    let configured = config::Config::get_option(TEMPORARY_PASSWORD_OPTION);
+    let required_length = password_security::temporary_password_length();
+    let password = if configured.chars().count() == required_length {
+        configured
+    } else {
+        let generated = config::Config::get_auto_password(required_length);
+        config::Config::set_option(
+            TEMPORARY_PASSWORD_OPTION.to_owned(),
+            generated.clone(),
+        );
+        generated
+    };
+    *password_security::TEMPORARY_PASSWORD.write().unwrap() = password;
+}
+
+pub fn update_temporary_password() {
+    let password =
+        config::Config::get_auto_password(password_security::temporary_password_length());
+    config::Config::set_option(
+        TEMPORARY_PASSWORD_OPTION.to_owned(),
+        password.clone(),
+    );
+    *password_security::TEMPORARY_PASSWORD.write().unwrap() = password;
 }
 
 pub fn consume_address(args: &mut Vec<String>) -> Result<Option<String>, String> {

@@ -34,7 +34,7 @@ This identity is deliberately separate from `RustDesk` and `RustDeskTiny`.
 | --- | --- |
 | `Cargo.toml` | Adds the `rustdesk-tiny` feature and Legacy Windows version-resource identity. |
 | `rust-toolchain.toml` | Pins Rust 1.75 and the Win7-compatible x64 MSVC target. |
-| `src/tiny.rs` | Owns Legacy branding, strict numeric `ip:port` parsing, direct-only command validation, listener configuration and tests. |
+| `src/tiny.rs` | Owns Legacy branding, persistent one-time-password policy, strict numeric `ip:port` parsing, direct-only command validation, listener configuration and tests. |
 | `src/lib.rs` | Exposes the Tiny policy module behind the feature. |
 | `src/core_main.rs` | Initializes Legacy before Windows bootstrap, validates Tiny commands, and provides strict silent install/update arguments and exit codes. |
 | `src/client.rs` | Rejects outgoing targets that are not numeric IPv4/IPv6 plus a non-zero port. |
@@ -43,6 +43,7 @@ This identity is deliberately separate from `RustDesk` and `RustDeskTiny`.
 | `src/main.rs` | Skips startup NAT and rendezvous checks. |
 | `src/flutter_ffi.rs` | Applies Legacy identity and hard settings before exposing state to Flutter. |
 | `src/ipc.rs` | Adds the feature-gated validated listener message. |
+| `src/server/connection.rs` | Prevents successful session teardown from rotating the Tiny one-time password. |
 | `src/platform/windows.rs` | Passes listener state to the desktop-session server, keeps service restarts idempotent and prevents silent upgrades from launching GUI/tray processes. |
 | `libs/portable/src/main.rs` | Uses a separate extraction directory, avoids inherited stdio handles on Win7, waits for silent operations and returns their exit code. |
 | `libs/portable/Cargo.toml` | Gives the installer an independent Legacy description and Windows version-resource identity. |
@@ -60,6 +61,7 @@ This identity is deliberately separate from `RustDesk` and `RustDeskTiny`.
 | `flutter/lib/desktop/pages/desktop_setting_page.dart` | Hides account/network/ID/plugin settings and rotates a temporary password only after an explicit length change. |
 | `flutter/lib/models/server_model.dart` | Makes periodic password synchronization read-only so focus and polling cannot rotate the password. |
 | `flutter/lib/models/peer_tab_model.dart` | Disables discovery for the direct-only product. |
+| `flutter/lib/desktop/pages/desktop_tab_page.dart` | Keeps the settings entry available in Tiny mode even when the 1.3.7 executable mode is incoming-only. |
 | `flutter/lib/generated_bridge.dart`, `flutter/lib/generated_bridge.freezed.dart`, `src/bridge_generated.rs`, `src/bridge_generated.io.rs` | Frozen generated bridge sources for the pinned Flutter/Dart toolchain. |
 | `flutter/windows/runner/Runner.rc`, `flutter/windows/runner/main.cpp` | Apply Legacy identity to Windows version resources and the runner fallback application name. |
 

@@ -755,6 +755,7 @@ impl Connection {
             conn.lr.my_id.clone(),
         );
         video_service::notify_video_frame_fetched(id, None);
+        #[cfg(not(feature = "rustdesk-tiny"))]
         if conn.authorized {
             password::update_temporary_password();
         }

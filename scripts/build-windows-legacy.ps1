@@ -102,10 +102,13 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw 'rustfmt for Rust 1.75 is required; run: rustup component add rustfmt --toolchain 1.75-x86_64-pc-windows-msvc'
     }
-    $flutterVersionOutput = & $flutterExe --version
-    $flutterVersionExitCode = $LASTEXITCODE
-    $flutterVersion = ($flutterVersionOutput | Select-Object -First 1)
-    if ($flutterVersionExitCode -ne 0 -or $flutterVersion -notlike 'Flutter 3.24.5*') {
+    $flutterVersionFile = Join-Path $flutterRoot 'version'
+    $flutterVersion = if (Test-Path -LiteralPath $flutterVersionFile) {
+        (Get-Content -LiteralPath $flutterVersionFile -Raw).Trim()
+    } else {
+        ''
+    }
+    if ($flutterVersion -ne '3.24.5') {
         throw "Flutter 3.24.5 is required; active SDK: $flutterVersion"
     }
     if (-not (Get-Command flutter_rust_bridge_codegen -ErrorAction SilentlyContinue)) {
