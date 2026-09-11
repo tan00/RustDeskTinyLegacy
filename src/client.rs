@@ -176,6 +176,8 @@ impl Client {
         interface: impl Interface,
     ) -> ResultType<((Stream, bool, Option<Vec<u8>>), (i32, String))> {
         debug_assert!(peer == interface.get_id());
+        #[cfg(feature = "rustdesk-tiny")]
+        crate::tiny::parse_address(peer).map_err(hbb_common::anyhow::Error::msg)?;
         interface.update_direct(None);
         interface.update_received(false);
         match Self::_start(peer, key, token, conn_type, interface).await {

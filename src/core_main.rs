@@ -30,6 +30,8 @@ macro_rules! my_println{
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub fn core_main() -> Option<Vec<String>> {
     crate::load_custom_client();
+    #[cfg(feature = "rustdesk-tiny")]
+    crate::tiny::initialize();
     #[cfg(windows)]
     crate::platform::windows::bootstrap();
     let mut args = Vec::new();
@@ -70,6 +72,41 @@ pub fn core_main() -> Option<Vec<String>> {
             }
         }
         i += 1;
+    }
+    #[cfg(feature = "rustdesk-tiny")]
+    {
+        if let Err(error) = crate::tiny::consume_listen(&mut args) {
+            crate::my_println!("{error}");
+            return None;
+        }
+        match crate::tiny::consume_address(&mut args) {
+            Ok(Some(address)) => {
+                flutter_args.push("--address".to_owned());
+                flutter_args.push(address);
+            }
+            Ok(None) => {}
+            Err(error) => {
+                crate::my_println!("{error}");
+                return None;
+            }
+        }
+        if let Err(error) = crate::tiny::validate_connection_args(&args) {
+            crate::my_println!("{error}");
+            return None;
+        }
+        match crate::tiny::parse_host_args(&args) {
+            Ok(Some(listen)) => {
+                if let Err(error) = crate::tiny::configure_service_host(listen) {
+                    crate::my_println!("{error}");
+                }
+                return None;
+            }
+            Ok(None) => {}
+            Err(error) => {
+                crate::my_println!("{error}");
+                return None;
+            }
+        }
     }
     #[cfg(any(target_os = "linux", target_os = "windows"))]
     if args.is_empty() {
@@ -186,31 +223,29 @@ pub fn core_main() -> Option<Vec<String>> {
                     log::error!("Failed to before-uninstall: {}", err);
                 }
                 return None;
-            } else if args[0] == "--silent-install" {
+            } else if matches!(args[0].as_str(), "--silent-install" | "--silent-update") {
                 if config::is_disable_installation() {
-                    return None;
+                    eprintln!("Installation is disabled by policy");
+                    std::process::exit(1);
                 }
-                let res = platform::install_me(
-                    "desktopicon startmenu",
-                    "".to_owned(),
-                    true,
-                    args.len() > 1,
-                );
-                let text = match res {
-                    Ok(_) => translate("Installation Successful!".to_string()),
-                    Err(err) => {
-                        println!("Failed with error: {err}");
-                        translate("Installation failed!".to_string())
+                if args[0] == "--silent-update" && !platform::is_installed() {
+                    eprintln!("RustDeskTinyLegacy is not installed; silent update was not applied");
+                    std::process::exit(2);
+                }
+                let (debug, install_dir) = match parse_silent_install_args(&args) {
+                    Ok(value) => value,
+                    Err(error) => {
+                        eprintln!("Invalid silent installation arguments: {error}");
+                        std::process::exit(2);
                     }
                 };
-                Toast::new(Toast::POWERSHELL_APP_ID)
-                    .title(&config::APP_NAME.read().unwrap())
-                    .text1(&text)
-                    .sound(Some(Sound::Default))
-                    .duration(Duration::Short)
-                    .show()
-                    .ok();
-                return None;
+                match platform::install_me("desktopicon startmenu", install_dir, true, debug) {
+                    Ok(_) => std::process::exit(0),
+                    Err(err) => {
+                        eprintln!("Silent installation failed: {err}");
+                        std::process::exit(1);
+                    }
+                }
             } else if args[0] == "--uninstall-cert" {
                 #[cfg(windows)]
                 hbb_common::allow_err!(crate::platform::windows::uninstall_cert());
@@ -665,4 +700,56 @@ fn is_root() -> bool {
     }
     #[allow(unreachable_code)]
     crate::platform::is_root()
+}
+#[cfg(windows)]
+fn parse_silent_install_args(args: &[String]) -> Result<(bool, String), String> {
+    let mut debug = false;
+    let mut install_dir = String::new();
+
+    let mut iter = args.iter().skip(1);
+    while let Some(arg) = iter.next() {
+        match arg.as_str() {
+            "debug" => debug = true,
+            "--install-dir" => {
+                if !install_dir.is_empty() {
+                    return Err("--install-dir may only be specified once".to_owned());
+                }
+                install_dir = iter
+                    .next()
+                    .filter(|path| !path.trim().is_empty())
+                    .ok_or_else(|| "--install-dir requires a non-empty path".to_owned())?
+                    .to_owned();
+            }
+            _ => return Err(format!("unsupported argument: {arg}")),
+        }
+    }
+
+    Ok((debug, install_dir))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn args(values: &[&str]) -> Vec<String> {
+        values.iter().map(|value| value.to_string()).collect()
+    }
+
+    #[test]
+    fn silent_install_arguments_are_strict() {
+        assert_eq!(
+            parse_silent_install_args(&args(&[
+                "--silent-install",
+                "debug",
+                "--install-dir",
+                r"C:\Legacy"
+            ])),
+            Ok((true, r"C:\Legacy".to_owned()))
+        );
+        assert!(parse_silent_install_args(&args(&["--silent-install", "--install-dir"]))
+            .is_err());
+        assert!(parse_silent_install_args(&args(&["--silent-install", "unknown"]))
+            .is_err());
+    }
+
 }

@@ -17,7 +17,7 @@ const APP_METADATA: &[u8] = include_bytes!("../app_metadata.toml");
 const APP_METADATA: &[u8] = &[];
 const APP_METADATA_CONFIG: &str = "meta.toml";
 const META_LINE_PREFIX_TIMESTAMP: &str = "timestamp = ";
-const APP_PREFIX: &str = "rustdesk";
+const APP_PREFIX: &str = "rustdesktinylegacy";
 const APPNAME_RUNTIME_ENV_KEY: &str = "RUSTDESK_APPNAME";
 #[cfg(windows)]
 const SET_FOREGROUND_WINDOW_ENV_KEY: &str = "SET_FOREGROUND_WINDOW";
@@ -98,8 +98,11 @@ fn setup(
     Some(dir.join(&reader.exe))
 }
 
-fn execute(path: PathBuf, args: Vec<String>, _ui: bool) {
+fn execute(path: PathBuf, args: Vec<String>, _ui: bool) -> Option<i32> {
     println!("executing {}", path.display());
+    let wait_for_completion = args
+        .iter()
+        .any(|arg| matches!(arg.as_str(), "--silent-install" | "--silent-update"));
     // setup env
     let exe = std::env::current_exe().unwrap_or_default();
     let exe_name = exe.file_name().unwrap_or_default();
@@ -114,24 +117,44 @@ fn execute(path: PathBuf, args: Vec<String>, _ui: bool) {
             cmd.env(SET_FOREGROUND_WINDOW_ENV_KEY, "1");
         }
     }
-    let _child = cmd
-        .env(APPNAME_RUNTIME_ENV_KEY, exe_name)
-        .stdin(Stdio::inherit())
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
-        .spawn();
+    cmd.env(APPNAME_RUNTIME_ENV_KEY, exe_name);
+    #[cfg(windows)]
+    {
+        cmd.stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+    }
+    #[cfg(not(windows))]
+    {
+        cmd.stdin(Stdio::inherit())
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit());
+    }
+    let mut child = match cmd.spawn() {
+        Ok(child) => child,
+        Err(error) => {
+            eprintln!("Failed to launch embedded executable: {error}");
+            return wait_for_completion.then_some(1);
+        }
+    };
+
+    if wait_for_completion {
+        return Some(
+            child
+                .wait()
+                .ok()
+                .and_then(|status| status.code())
+                .unwrap_or(1),
+        );
+    }
 
     #[cfg(windows)]
     if _ui {
-        match _child {
-            Ok(child) => unsafe {
-                winapi::um::winuser::AllowSetForegroundWindow(child.id() as u32);
-            },
-            Err(e) => {
-                eprintln!("{:?}", e);
-            }
+        unsafe {
+            winapi::um::winuser::AllowSetForegroundWindow(child.id() as u32);
         }
     }
+    None
 }
 
 fn main() {
@@ -154,7 +177,10 @@ fn main() {
     if let Some(exe) = setup(
         reader,
         None,
-        click_setup || args.contains(&"--silent-install".to_owned()),
+        click_setup
+            || args
+                .iter()
+                .any(|arg| matches!(arg.as_str(), "--silent-install" | "--silent-update")),
         &args,
         &mut ui,
     ) {
@@ -163,7 +189,9 @@ fn main() {
         } else if quick_support {
             args = vec!["--quick_support".to_owned()];
         }
-        execute(exe, args, ui);
+        if let Some(exit_code) = execute(exe, args, ui) {
+            std::process::exit(exit_code);
+        }
     }
 }
 

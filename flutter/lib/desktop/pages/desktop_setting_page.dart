@@ -67,13 +67,18 @@ class DesktopSettingPage extends StatefulWidget {
         !bind.isDisableSettings() &&
         bind.mainGetBuildinOption(key: kOptionHideSecuritySetting) != 'Y')
       SettingsTabKey.safety,
-    if (!bind.isDisableSettings() &&
+    if (!bind.isCustomClient() &&
+        !bind.isDisableSettings() &&
         bind.mainGetBuildinOption(key: kOptionHideNetworkSetting) != 'Y')
       SettingsTabKey.network,
     if (!bind.isIncomingOnly()) SettingsTabKey.display,
-    if (!isWeb && !bind.isIncomingOnly() && bind.pluginFeatureIsEnabled())
+    if (!bind.isCustomClient() &&
+        !isWeb &&
+        !bind.isIncomingOnly() &&
+        bind.pluginFeatureIsEnabled())
       SettingsTabKey.plugin,
-    if (!bind.isDisableAccount()) SettingsTabKey.account,
+    if (!bind.isCustomClient() && !bind.isDisableAccount())
+      SettingsTabKey.account,
     SettingsTabKey.about,
   ];
 
@@ -467,7 +472,7 @@ class _GeneralState extends State<_General> {
             isServer: false),
       _OptionCheckBox(context, 'Adaptive bitrate', kOptionEnableAbr),
       if (!isWeb) wallpaper(),
-      if (!isWeb && !bind.isIncomingOnly()) ...[
+      if (!bind.isCustomClient() && !isWeb && !bind.isIncomingOnly()) ...[
         _OptionCheckBox(
           context,
           'Open connection in new tab',
@@ -764,7 +769,8 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
                 permissions(context),
                 password(context),
                 _Card(title: '2FA', children: [tfa()]),
-                _Card(title: 'ID', children: [changeId()]),
+                if (!bind.isCustomClient())
+                  _Card(title: 'ID', children: [changeId()]),
                 more(context),
               ]),
             ),
@@ -1035,6 +1041,7 @@ class _SafetyState extends State<_Safety> with AutomaticKeepAliveClientMixin {
                   if (value != null) {
                     () async {
                       await model.setTemporaryPasswordLength(value.toString());
+                      await bind.mainUpdateTemporaryPassword();
                       await model.updatePasswordModel();
                     }();
                   }

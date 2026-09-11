@@ -10,8 +10,11 @@ fn main() {
     if !common::global_init() {
         return;
     }
-    common::test_rendezvous_server();
-    common::test_nat_type();
+    #[cfg(not(feature = "rustdesk-tiny"))]
+    {
+        common::test_rendezvous_server();
+        common::test_nat_type();
+    }
     common::global_clean();
 }
 

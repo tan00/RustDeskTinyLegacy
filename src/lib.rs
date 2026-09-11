@@ -54,6 +54,8 @@ pub mod plugin;
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod tray;
+#[cfg(feature = "rustdesk-tiny")]
+pub mod tiny;
 
 mod ui_cm_interface;
 mod ui_interface;

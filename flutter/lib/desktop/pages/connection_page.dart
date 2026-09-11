@@ -212,7 +212,14 @@ class _ConnectionPageState extends State<ConnectionPage>
   @override
   void initState() {
     super.initState();
-    if (_idController.text.isEmpty) {
+    final addressIndex = kBootArgs.indexOf('--address');
+    final presetAddress =
+        addressIndex >= 0 && addressIndex + 1 < kBootArgs.length
+            ? kBootArgs[addressIndex + 1]
+            : null;
+    if (bind.isCustomClient() && presetAddress != null) {
+      _idController.id = presetAddress;
+    } else if (_idController.text.isEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         final lastRemoteId = await bind.mainGetLastRemoteId();
         if (lastRemoteId != _idController.id) {
@@ -291,8 +298,8 @@ class _ConnectionPageState extends State<ConnectionPage>
             Expanded(child: PeerTabPage()),
           ],
         ).paddingOnly(left: 12.0)),
-        if (!isOutgoingOnly) const Divider(height: 1),
-        if (!isOutgoingOnly) OnlineStatusWidget()
+        if (!isOutgoingOnly && !isRustDeskTinyMode) const Divider(height: 1),
+        if (!isOutgoingOnly && !isRustDeskTinyMode) OnlineStatusWidget()
       ],
     );
   }
@@ -301,6 +308,11 @@ class _ConnectionPageState extends State<ConnectionPage>
   /// Connects to the selected peer.
   void onConnect({bool isFileTransfer = false}) {
     var id = _idController.id;
+    if ((bind.isCustomClient() || isRustDeskTinyMode) &&
+        !_isValidDirectAddress(id)) {
+      showToast('Invalid ip:port');
+      return;
+    }
     connect(context, id, isFileTransfer: isFileTransfer);
   }
 
@@ -316,6 +328,23 @@ class _ConnectionPageState extends State<ConnectionPage>
     });
   }
 
+  bool _isValidDirectAddress(String value) {
+    final uri = Uri.tryParse('tcp://$value');
+    if (uri == null || !uri.hasPort || uri.port == 0 || uri.host.isEmpty) {
+      return false;
+    }
+    final host = uri.host;
+    final ipv4 = RegExp(r'^(?:\d{1,3}\.){3}\d{1,3}$').hasMatch(host) &&
+        host.split('.').every((part) {
+          final value = int.tryParse(part);
+          return value != null && value >= 0 && value <= 255;
+        });
+    final ipv6 = host.contains(':') &&
+        RegExp(r'^[0-9a-fA-F:]+$').hasMatch(host) &&
+        host != '::';
+    return (ipv4 && host != '0.0.0.0') || ipv6;
+  }
+
   /// UI for the remote ID TextField.
   /// Search for a peer.
   Widget _buildRemoteIDTextField(BuildContext context) {
@@ -328,12 +357,18 @@ class _ConnectionPageState extends State<ConnectionPage>
       child: Ink(
         child: Column(
           children: [
-            getConnectionPageTitle(context, false).marginOnly(bottom: 15),
+            getConnectionPageTitle(context, false,
+                    showHelp: !isRustDeskTinyMode)
+                .marginOnly(bottom: 15),
             Row(
               children: [
                 Expanded(
                     child: Autocomplete<Peer>(
                   optionsBuilder: (TextEditingValue textEditingValue) {
+                    if (isRustDeskTinyMode) {
+                      _autocompleteOpts = const Iterable<Peer>.empty();
+                      return _autocompleteOpts;
+                    }
                     if (textEditingValue.text == '') {
                       _autocompleteOpts = const Iterable<Peer>.empty();
                     } else if (peers.isEmpty && !isPeersLoaded) {
@@ -386,7 +421,9 @@ class _ConnectionPageState extends State<ConnectionPage>
                     Get.put<TextEditingController>(fieldTextEditingController);
                     fieldFocusNode.addListener(() async {
                       _idInputFocused.value = fieldFocusNode.hasFocus;
-                      if (fieldFocusNode.hasFocus && !isPeersLoading) {
+                      if (fieldFocusNode.hasFocus &&
+                          !isRustDeskTinyMode &&
+                          !isPeersLoading) {
                         _fetchPeers();
                       }
                     });
@@ -413,7 +450,9 @@ class _ConnectionPageState extends State<ConnectionPage>
                               counterText: '',
                               hintText: _idInputFocused.value
                                   ? null
-                                  : translate('Enter Remote ID'),
+                                  : bind.isCustomClient() || isRustDeskTinyMode
+                                      ? 'ip:port'
+                                      : translate('Enter Remote ID'),
                               contentPadding: const EdgeInsets.symmetric(
                                   horizontal: 15, vertical: 13)),
                           controller: fieldTextEditingController,

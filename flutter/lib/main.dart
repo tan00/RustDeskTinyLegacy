@@ -33,8 +33,6 @@ import 'package:flutter_hbb/plugin/handlers.dart'
 /// Basic window and launch properties.
 int? kWindowId;
 WindowType? kWindowType;
-late List<String> kBootArgs;
-
 Future<void> main(List<String> args) async {
   earlyAssert();
   WidgetsFlutterBinding.ensureInitialized();

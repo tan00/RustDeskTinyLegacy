@@ -259,9 +259,6 @@ class ServerModel with ChangeNotifier {
       update = true;
     }
     if (_temporaryPasswordLength != temporaryPasswordLength) {
-      if (_temporaryPasswordLength.isNotEmpty) {
-        bind.mainUpdateTemporaryPassword();
-      }
       _temporaryPasswordLength = temporaryPasswordLength;
       update = true;
     }

@@ -472,6 +472,10 @@ audio_rechannel!(audio_rechannel_8_5, 8, 5);
 audio_rechannel!(audio_rechannel_8_6, 8, 6);
 audio_rechannel!(audio_rechannel_8_7, 8, 7);
 
+#[cfg(feature = "rustdesk-tiny")]
+pub fn test_nat_type() {}
+
+#[cfg(not(feature = "rustdesk-tiny"))]
 pub fn test_nat_type() {
     let mut i = 0;
     std::thread::spawn(move || loop {
@@ -494,6 +498,7 @@ pub fn test_nat_type() {
 }
 
 #[tokio::main(flavor = "current_thread")]
+#[cfg(not(feature = "rustdesk-tiny"))]
 async fn test_nat_type_() -> ResultType<bool> {
     log::info!("Testing nat ...");
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
@@ -617,6 +622,7 @@ pub async fn get_nat_type(ms_timeout: u64) -> i32 {
 
 // used for client to test which server is faster in case stop-servic=Y
 #[tokio::main(flavor = "current_thread")]
+#[cfg(not(feature = "rustdesk-tiny"))]
 async fn test_rendezvous_server_() {
     let servers = Config::get_rendezvous_servers();
     if servers.len() <= 1 {
@@ -644,7 +650,10 @@ async fn test_rendezvous_server_() {
     Config::reset_online();
 }
 
-// #[cfg(any(target_os = "android", target_os = "ios", feature = "cli"))]
+#[cfg(feature = "rustdesk-tiny")]
+pub fn test_rendezvous_server() {}
+
+#[cfg(not(feature = "rustdesk-tiny"))]
 pub fn test_rendezvous_server() {
     std::thread::spawn(test_rendezvous_server_);
 }
@@ -810,11 +819,16 @@ pub fn is_modifier(evt: &KeyEvent) -> bool {
     }
 }
 
+#[cfg(feature = "rustdesk-tiny")]
+pub fn check_software_update() {}
+
+#[cfg(not(feature = "rustdesk-tiny"))]
 pub fn check_software_update() {
     std::thread::spawn(move || allow_err!(check_software_update_()));
 }
 
 #[tokio::main(flavor = "current_thread")]
+#[cfg(not(feature = "rustdesk-tiny"))]
 async fn check_software_update_() -> hbb_common::ResultType<()> {
     let (request, url) =
         hbb_common::version_check_request(hbb_common::VER_TYPE_RUSTDESK_CLIENT.to_string());
