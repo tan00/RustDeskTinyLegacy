@@ -1270,7 +1270,8 @@ oLink.Save
         ),
         "vbs",
         "mk_shortcut",
-    )?
+    )
+    .map_err(|error| anyhow!("failed to prepare the application shortcut: {error}"))?
     .to_str()
     .unwrap_or("")
     .to_owned();
@@ -1289,11 +1290,13 @@ oLink.Save
         ),
         "vbs",
         "uninstall_shortcut",
-    )?
+    )
+    .map_err(|error| anyhow!("failed to prepare the uninstall shortcut: {error}"))?
     .to_str()
     .unwrap_or("")
     .to_owned();
-    let tray_shortcut = get_tray_shortcut(&exe, &tmp_path)?;
+    let tray_shortcut = get_tray_shortcut(&exe, &tmp_path)
+        .map_err(|error| anyhow!("failed to prepare the tray shortcut: {error}"))?;
     let mut reg_value_desktop_shortcuts = "0".to_owned();
     let mut reg_value_start_menu_shortcuts = "0".to_owned();
     let mut shortcuts = Default::default();
@@ -1316,7 +1319,10 @@ copy /Y \"{tmp_path}\\Uninstall {app_name}.lnk\" \"{start_menu}\\\"
         reg_value_start_menu_shortcuts = "1".to_owned();
     }
 
-    let meta = std::fs::symlink_metadata(std::env::current_exe()?)?;
+    let current_exe = std::env::current_exe()
+        .map_err(|error| anyhow!("failed to resolve the installer executable: {error}"))?;
+    let meta = std::fs::symlink_metadata(&current_exe)
+        .map_err(|error| anyhow!("failed to inspect {}: {error}", current_exe.display()))?;
     let size = meta.len() / 1024;
     // https://docs.microsoft.com/zh-cn/windows/win32/msi/uninstall-registry-key?redirectedfrom=MSDNa
     // https://www.windowscentral.com/how-edit-registry-using-command-prompt-windows-10
@@ -1332,7 +1338,7 @@ if exist \"{tmp_path}\\Uninstall {app_name}.lnk\" del /f /q \"{tmp_path}\\Uninst
 if exist \"{tmp_path}\\{app_name} Tray.lnk\" del /f /q \"{tmp_path}\\{app_name} Tray.lnk\"
         "
     );
-    let src_exe = std::env::current_exe()?.to_str().unwrap_or("").to_string();
+    let src_exe = current_exe.to_str().unwrap_or("").to_string();
 
     // potential bug here: if run_cmd cancelled, but config file is changed.
     if let Some(lic) = get_license() {

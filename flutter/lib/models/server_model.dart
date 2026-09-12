@@ -239,7 +239,13 @@ class ServerModel with ChangeNotifier {
       _approveMode = approveMode;
       update = true;
     }
-    var stopped = await mainGetBoolOption(kOptionStopService);
+    // Tiny Legacy owns a stable one-time password even when the upstream
+    // stop-service option is set. Hiding it behind that option leaves the
+    // installed direct-only UI permanently showing "-" when no RustDesk
+    // service is registered.
+    final stopped = isRustDeskTinyMode
+        ? false
+        : await mainGetBoolOption(kOptionStopService);
     final oldPwdText = _serverPasswd.text;
     if (stopped ||
         verificationMethod == kUsePermanentPassword ||

@@ -87,11 +87,15 @@ if (-not (Test-Path -LiteralPath $engineMarker -PathType Leaf)) {
 $previousPath = $env:PATH
 $previousToolchain = $env:RUSTUP_TOOLCHAIN
 $previousWrapper = $env:RUSTC_WRAPPER
+$previousSccacheNoDaemon = $env:SCCACHE_NO_DAEMON
 $previousRustLog = $env:RUST_LOG
 try {
     $env:PATH = (Join-Path $flutterRoot 'bin') + [IO.Path]::PathSeparator + $previousPath
     $env:RUSTUP_TOOLCHAIN = '1.75-x86_64-pc-windows-msvc'
     $env:RUSTC_WRAPPER = ''
+    # The user-level Cargo config uses sccache as rustc-wrapper. Running it
+    # without a daemon avoids intermittent server-start timeouts on this host.
+    $env:SCCACHE_NO_DAEMON = '1'
     $env:RUST_LOG = 'info'
 
     $rustVersion = (& rustc --version)
@@ -148,6 +152,7 @@ finally {
     $env:PATH = $previousPath
     $env:RUSTUP_TOOLCHAIN = $previousToolchain
     $env:RUSTC_WRAPPER = $previousWrapper
+    $env:SCCACHE_NO_DAEMON = $previousSccacheNoDaemon
     $env:RUST_LOG = $previousRustLog
 }
 

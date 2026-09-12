@@ -636,13 +636,11 @@ impl RendezvousMediator {
 
 #[cfg(feature = "rustdesk-tiny")]
 async fn direct_server_tiny(server: ServerPtr) {
-    let address = match crate::tiny::listen_address() {
-        Ok(address) => address,
-        Err(error) => {
-            log::error!("{error}");
-            return;
-        }
-    };
+    // Match RustDesk 1.3.7's direct-access listener: the host accepts
+    // connections on every local IPv4 interface, while authentication is
+    // still enforced by the normal RustDesk session/password handshake.
+    let port = get_direct_port();
+    let address = std::net::SocketAddr::from(([0, 0, 0, 0], port as u16));
     let listener = match hbb_common::tcp::new_listener(address, false).await {
         Ok(listener) => listener,
         Err(error) => {

@@ -27,6 +27,11 @@ pub fn initialize() {
     hard.insert("disable-group-panel".to_owned(), "Y".to_owned());
     drop(hard);
 
+    config::OVERWRITE_SETTINGS
+        .write()
+        .unwrap()
+        .insert("direct-server".to_owned(), "Y".to_owned());
+
     let mut builtin = config::BUILTIN_SETTINGS.write().unwrap();
     for key in [
         "hide-network-settings",

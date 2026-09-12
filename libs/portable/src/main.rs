@@ -50,13 +50,14 @@ fn is_timestamp_matches(dir: &Path, ts: &mut u64) -> bool {
     false
 }
 
-fn write_meta(dir: &Path, ts: u64) {
+fn write_meta(dir: &Path, ts: u64) -> Result<(), String> {
     let meta_file = dir.join(APP_METADATA_CONFIG);
     if ts != 0 {
         let content = format!("{}{}", META_LINE_PREFIX_TIMESTAMP, ts);
-        // Ignore is ok here
-        let _ = std::fs::write(meta_file, content);
+        std::fs::write(&meta_file, content)
+            .map_err(|error| format!("Failed to write {}: {error}", meta_file.display()))?;
     }
+    Ok(())
 }
 
 fn setup(
@@ -65,16 +66,15 @@ fn setup(
     clear: bool,
     _args: &Vec<String>,
     _ui: &mut bool,
-) -> Option<PathBuf> {
-    let dir = if let Some(dir) = dir {
+) -> Result<PathBuf, String> {
+    let mut dir = if let Some(dir) = dir {
         dir
     } else {
         // home dir
         if let Some(dir) = dirs::data_local_dir() {
             dir.join(APP_PREFIX)
         } else {
-            eprintln!("not found data local dir");
-            return None;
+            return Err("The local application data directory was not found".to_owned());
         }
     };
 
@@ -85,34 +85,74 @@ fn setup(
             *_ui = true;
             ui::setup();
         }
-        std::fs::remove_dir_all(&dir).ok();
+        if let Err(error) = std::fs::remove_dir_all(&dir) {
+            if error.kind() == std::io::ErrorKind::NotFound {
+                // A clean first run has nothing to remove.
+            } else {
+                // A previously extracted GUI may still be running from this
+                // directory, so Windows can keep its executable and DLLs locked.
+                // Reusing the partially removed directory would mix payloads from
+                // different builds because BinaryReader skips matching files.
+                eprintln!(
+                    "Failed to clear portable directory {}: {error}",
+                    dir.display()
+                );
+                let suffix = if ts == 0 {
+                    std::process::id().to_string()
+                } else {
+                    format!("{ts}-{}", std::process::id())
+                };
+                dir = dir.with_file_name(format!("{APP_PREFIX}-{suffix}"));
+                match std::fs::remove_dir_all(&dir) {
+                    Ok(()) => {}
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                    Err(error) => {
+                        return Err(format!(
+                            "Failed to clear fallback directory {}: {error}",
+                            dir.display()
+                        ));
+                    }
+                }
+            }
+        }
     }
     for file in reader.files.iter() {
-        file.write_to_file(&dir);
+        file.write_to_file(&dir)
+            .map_err(|error| format!("Failed to extract {}: {error}", file.path))?;
     }
-    write_meta(&dir, ts);
+    write_meta(&dir, ts)?;
     #[cfg(windows)]
     windows::copy_runtime_broker(&dir);
     #[cfg(linux)]
     reader.configure_permission(&dir);
-    Some(dir.join(&reader.exe))
+    let executable = dir.join(&reader.exe);
+    if !executable.is_file() {
+        return Err(format!(
+            "Embedded executable was not extracted: {}",
+            executable.display()
+        ));
+    }
+    Ok(executable)
 }
 
-fn execute(path: PathBuf, args: Vec<String>, _ui: bool) -> Option<i32> {
+fn execute(path: PathBuf, args: Vec<String>, _ui: bool) -> Result<Option<i32>, String> {
     println!("executing {}", path.display());
-    let wait_for_completion = args
+    let is_silent = args
         .iter()
         .any(|arg| matches!(arg.as_str(), "--silent-install" | "--silent-update"));
+    let wait_for_completion = is_silent || args.first().map(String::as_str) == Some("--install");
     // setup env
     let exe = std::env::current_exe().unwrap_or_default();
     let exe_name = exe.file_name().unwrap_or_default();
     // run executable
-    let mut cmd = Command::new(path);
+    let mut cmd = Command::new(&path);
     cmd.args(args);
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
-        cmd.creation_flags(winapi::um::winbase::CREATE_NO_WINDOW);
+        if is_silent {
+            cmd.creation_flags(winapi::um::winbase::CREATE_NO_WINDOW);
+        }
         if _ui {
             cmd.env(SET_FOREGROUND_WINDOW_ENV_KEY, "1");
         }
@@ -120,6 +160,8 @@ fn execute(path: PathBuf, args: Vec<String>, _ui: bool) -> Option<i32> {
     cmd.env(APPNAME_RUNTIME_ENV_KEY, exe_name);
     #[cfg(windows)]
     {
+        // A GUI process launched from Explorer has no valid console handles on
+        // Windows 7. Inheriting them makes Command::spawn fail with os error 6.
         cmd.stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null());
@@ -130,22 +172,18 @@ fn execute(path: PathBuf, args: Vec<String>, _ui: bool) -> Option<i32> {
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit());
     }
-    let mut child = match cmd.spawn() {
-        Ok(child) => child,
-        Err(error) => {
-            eprintln!("Failed to launch embedded executable: {error}");
-            return wait_for_completion.then_some(1);
-        }
-    };
+    let mut child = cmd.spawn().map_err(|error| {
+        format!(
+            "Failed to launch embedded executable {}: {error}",
+            path.display()
+        )
+    })?;
 
     if wait_for_completion {
-        return Some(
-            child
-                .wait()
-                .ok()
-                .and_then(|status| status.code())
-                .unwrap_or(1),
-        );
+        let status = child
+            .wait()
+            .map_err(|error| format!("Failed while waiting for the installer: {error}"))?;
+        return Ok(Some(status.code().unwrap_or(1)));
     }
 
     #[cfg(windows)]
@@ -154,7 +192,7 @@ fn execute(path: PathBuf, args: Vec<String>, _ui: bool) -> Option<i32> {
             winapi::um::winuser::AllowSetForegroundWindow(child.id() as u32);
         }
     }
-    None
+    Ok(None)
 }
 
 fn main() {
@@ -171,10 +209,13 @@ fn main() {
     }
     let click_setup = args.is_empty() && arg_exe.to_lowercase().ends_with("install.exe");
     let quick_support = args.is_empty() && arg_exe.to_lowercase().ends_with("qs.exe");
+    let silent = args
+        .iter()
+        .any(|arg| matches!(arg.as_str(), "--silent-install" | "--silent-update"));
 
     let mut ui = false;
     let reader = BinaryReader::default();
-    if let Some(exe) = setup(
+    match setup(
         reader,
         None,
         click_setup
@@ -184,15 +225,29 @@ fn main() {
         &args,
         &mut ui,
     ) {
-        if click_setup {
-            args = vec!["--install".to_owned()];
-        } else if quick_support {
-            args = vec!["--quick_support".to_owned()];
+        Ok(exe) => {
+            if click_setup {
+                args = vec!["--install".to_owned()];
+            } else if quick_support {
+                args = vec!["--quick_support".to_owned()];
+            }
+            match execute(exe, args, ui) {
+                Ok(Some(exit_code)) => std::process::exit(exit_code),
+                Ok(None) => {}
+                Err(error) => fail(&error, silent),
+            }
         }
-        if let Some(exit_code) = execute(exe, args, ui) {
-            std::process::exit(exit_code);
-        }
+        Err(error) => fail(&error, silent),
     }
+}
+
+fn fail(error: &str, silent: bool) -> ! {
+    eprintln!("{error}");
+    #[cfg(windows)]
+    if !silent {
+        ui::show_error(error);
+    }
+    std::process::exit(1)
 }
 
 #[cfg(windows)]

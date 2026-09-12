@@ -230,3 +230,10 @@ pub fn setup() {
         }
     });
 }
+
+pub fn show_error(error: &str) {
+    nwg::error_message(
+        "RustDeskTinyLegacy Setup",
+        &format!("RustDeskTinyLegacy could not start.\n\n{error}"),
+    );
+}

@@ -1,6 +1,6 @@
 use std::{
     fs::{self},
-    io::{Cursor, Read},
+    io::{self, Cursor, Read},
     path::Path,
 };
 
@@ -34,19 +34,19 @@ impl Default for BinaryReader {
 }
 
 impl BinaryData {
-    fn decompress(&self) -> Vec<u8> {
+    fn decompress(&self) -> io::Result<Vec<u8>> {
         let cursor = Cursor::new(self.raw);
         let mut decoder = brotli::Decompressor::new(cursor, BUF_SIZE);
         let mut buf = Vec::new();
-        decoder.read_to_end(&mut buf).ok();
-        buf
+        decoder.read_to_end(&mut buf)?;
+        Ok(buf)
     }
 
-    pub fn write_to_file(&self, prefix: &Path) {
+    pub fn write_to_file(&self, prefix: &Path) -> io::Result<()> {
         let p = prefix.join(&self.path);
         if let Some(parent) = p.parent() {
             if !parent.exists() {
-                let _ = fs::create_dir_all(parent);
+                fs::create_dir_all(parent)?;
             }
         }
         if p.exists() {
@@ -57,13 +57,14 @@ impl BinaryData {
             if digest == md5_record {
                 // same, skip this file
                 println!("skip {}", &self.path);
-                return;
+                return Ok(());
             } else {
                 println!("writing {}", p.display());
                 println!("{} -> {}", md5_record, digest)
             }
         }
-        let _ = fs::write(p, self.decompress());
+        fs::write(p, self.decompress()?)?;
+        Ok(())
     }
 }
 
