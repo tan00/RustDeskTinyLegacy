@@ -639,44 +639,59 @@ async fn direct_server_tiny(server: ServerPtr) {
     // Match RustDesk 1.3.7's direct-access listener: the host accepts
     // connections on every local IPv4 interface, while authentication is
     // still enforced by the normal RustDesk session/password handshake.
-    let port = get_direct_port();
-    let address = std::net::SocketAddr::from(([0, 0, 0, 0], port as u16));
-    let listener = match hbb_common::tcp::new_listener(address, false).await {
-        Ok(listener) => listener,
-        Err(error) => {
-            log::error!("Failed to listen on {address}: {error}");
-            return;
-        }
-    };
-    log::info!("RustDeskTinyLegacy direct server listening on {address}");
     loop {
-        match listener.accept().await {
-            Ok((stream, peer)) => {
-                if let Err(error) = stream.set_nodelay(true) {
-                    log::warn!("Failed to set TCP_NODELAY for {peer}: {error}");
-                }
-                let local = match stream.local_addr() {
-                    Ok(local) => local,
-                    Err(error) => {
-                        log::error!("Failed to resolve accepted socket address: {error}");
-                        continue;
+        let port = get_direct_port();
+        let address = std::net::SocketAddr::from(([0, 0, 0, 0], port as u16));
+        match hbb_common::tcp::new_listener(address, false).await {
+            Ok(listener) => {
+                log::info!("RustDeskTinyLegacy direct server listening on {address}");
+                loop {
+                    if get_direct_port() != port {
+                        log::info!(
+                            "Direct-access port changed, rebuilding listener (was {port})"
+                        );
+                        break;
                     }
-                };
-                let server = server.clone();
-                tokio::spawn(async move {
-                    allow_err!(
-                        crate::server::create_tcp_connection(
-                            server,
-                            hbb_common::Stream::from(stream, local),
-                            peer,
-                            false,
-                        )
-                        .await
-                    );
-                });
+                    match hbb_common::timeout(1000, listener.accept()).await {
+                        Ok(Ok((stream, peer))) => {
+                            if let Err(error) = stream.set_nodelay(true) {
+                                log::warn!("Failed to set TCP_NODELAY for {peer}: {error}");
+                            }
+                            let local = match stream.local_addr() {
+                                Ok(local) => local,
+                                Err(error) => {
+                                    log::error!(
+                                        "Failed to resolve accepted socket address: {error}"
+                                    );
+                                    continue;
+                                }
+                            };
+                            let server = server.clone();
+                            tokio::spawn(async move {
+                                allow_err!(
+                                    crate::server::create_tcp_connection(
+                                        server,
+                                        hbb_common::Stream::from(stream, local),
+                                        peer,
+                                        false,
+                                    )
+                                    .await
+                                );
+                            });
+                        }
+                        Ok(Err(error)) => {
+                            log::error!("Direct listener accept failed: {error}");
+                            break;
+                        }
+                        Err(_) => {}
+                    }
+                }
             }
-            Err(error) => log::error!("Direct listener accept failed: {error}"),
+            Err(error) => {
+                log::error!("Failed to listen on {address}: {error}");
+            }
         }
+        sleep(1.).await;
     }
 }
 

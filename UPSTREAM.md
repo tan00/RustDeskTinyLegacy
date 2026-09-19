@@ -59,7 +59,7 @@ remains available on the Win7-compatible interface.
 | `src/tiny.rs` | Owns branding, hard settings, persistent one-time-password policy, always-enabled direct access, strict address parsing, Tiny command validation and tests. |
 | `src/core_main.rs` | Initializes Legacy before Windows bootstrap and implements validated interactive/silent install and update commands with reliable exit codes. |
 | `src/client.rs` | Rejects outgoing targets that are not numeric IPv4/IPv6 plus a non-zero port. |
-| `src/rendezvous_mediator.rs` | Replaces rendezvous/relay operation with a direct listener on `0.0.0.0:<configured-port>` and feeds accepted streams into the shared 1.3.7 server implementation. |
+| `src/rendezvous_mediator.rs` | Replaces rendezvous/relay operation with a self-managing direct listener on `0.0.0.0:<configured-port>` and feeds accepted streams into the shared 1.3.7 server implementation. The listener owns its full lifecycle: it retries binding every second while the configured port is unavailable and rebuilds itself when the configured port changes, so listener changes take effect without any external orchestration (no service or process restart, no dependency on p2premote). |
 | `src/server/connection.rs` | Prevents successful session teardown from rotating the Tiny password. |
 | `src/common.rs` | Disables NAT, rendezvous latency and update checks in Tiny builds. |
 | `src/main.rs` | Skips startup NAT and rendezvous checks. |
