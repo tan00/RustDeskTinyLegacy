@@ -9,6 +9,18 @@
   <b>We need your help to translate this README, <a href="https://github.com/rustdesk/rustdesk/tree/master/src/lang">RustDesk UI</a> and <a href="https://github.com/rustdesk/doc.rustdesk.com">RustDesk Doc</a> to your native language</b>
 </p>
 
+## 本项目（RustDeskTinyLegacy）与原版 RustDesk 的差异
+
+本仓库是基于 RustDesk **1.3.7 冻结基线**（源码提交 `1f02bc9d`）的独立定制分支，面向 **Windows 7 SP1 x64**，仅保留 **IP:端口直连** 的远程桌面能力，不跟随上游后续版本。与原版的主要差异：
+
+- **仅支持直连**：只接受数字 IPv4 或带方括号的 IPv6 地址加非零端口；不使用 RustDesk ID、不注册会合/中继服务器，无 NAT/延迟探测、账号同步和软件更新请求，空闲时无任何对外探测流量。
+- **直连监听端口改为 21201**（`RENDEZVOUS_PORT = 21119`，直连端口 = `RENDEZVOUS_PORT + 2`），避免与原版 RustDesk 占用的 21116–21119 冲突，两者可共存。可在设置中自定义直连端口。
+- **稳定的一次性密码**：仅通过显式刷新或修改密码长度才会变化。
+- **界面精简**：隐藏本机 ID 与网络状态，移除地址发现、自动补全、账号/服务器类设置，保留设置页。
+- **独立产品身份与 Win7 兼容**：独立的安装/卸载/服务生命周期与静默升级，固定 Rust 1.75 + Flutter 3.24.5 + Win7 引擎工具链，冻结生成的 Flutter/Rust bridge。
+
+完整的逐文件改动清单、基线信息与发布验收清单见 [UPSTREAM.md](UPSTREAM.md) 与 [LEGACY_BASELINE.md](LEGACY_BASELINE.md)。
+
 Chat with us: [Discord](https://discord.gg/nDceKgxnkV) | [Twitter](https://twitter.com/rustdesk) | [Reddit](https://www.reddit.com/r/rustdesk)
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/I2I04VU09)
