@@ -21,14 +21,21 @@ merge later RustDesk releases. The official 1.3.7 archive omitted
 `libs/hbb_common`, so the locked dependency source is vendored directly rather
 than retained as a Git submodule.
 
+Legacy is currently shipped only for Windows 7 x64, but upstream cross-platform
+code is retained unless a documented product requirement needs a change. Tiny
+changes should stay minimal relative to RustDesk 1.3.7. In particular, Legacy
+reuses upstream `direct_server`/`listen_any` and upstream `stop-service`
+behavior: users and operators may stop incoming access, and Legacy must not
+force `stop-service=N` or accept listener lifecycle control from p2premote.
+
 ## Product behavior
 
 RustDeskTinyLegacy accepts only numeric IPv4 or bracketed IPv6 addresses with
 a non-zero port. It does not use RustDesk IDs, rendezvous/relay registration,
 NAT probing, latency probing, account synchronization or software-update
-requests. The service listens on every local IPv4 interface at the configured
-direct-access port and authenticates incoming sessions with the normal
-RustDesk password/session implementation.
+requests. The service uses the upstream listener on the configured direct-access
+port and authenticates incoming sessions with the normal RustDesk
+password/session implementation.
 
 The UI hides the local ID and RustDesk network state, retains a stable one-time
 password, uses a lowercase `ip:port` input and removes discovery, autocomplete,
@@ -42,7 +49,7 @@ remains available on the Win7-compatible interface.
 | Independent `RustDeskTinyLegacy` identity | `Cargo.toml`, `libs/portable/Cargo.toml`, `src/tiny.rs`, `src/core_main.rs`, `src/flutter_ffi.rs`, `flutter/windows/runner/Runner.rc`, `flutter/windows/runner/main.cpp` |
 | Numeric `ip:port`-only outgoing connections | `src/tiny.rs`, `src/client.rs`, `flutter/lib/consts.dart`, `flutter/lib/main.dart`, `flutter/lib/desktop/pages/connection_page.dart`, `flutter/lib/common/widgets/connection_page_title.dart` |
 | No rendezvous, relay registration, NAT/latency probing, account synchronization or update traffic | `src/tiny.rs`, `src/rendezvous_mediator.rs`, `src/common.rs`, `src/main.rs`, `flutter/lib/models/peer_tab_model.dart`, `flutter/lib/desktop/pages/connection_page.dart`, `flutter/lib/desktop/pages/desktop_setting_page.dart` |
-| Always-on direct server bound to `0.0.0.0:<configured-port>` | `src/tiny.rs`, `src/rendezvous_mediator.rs`, `src/ipc.rs`, `src/platform/windows.rs` |
+| Direct server enabled by default on the configured port, using upstream listener lifecycle and `stop-service` behavior | `src/tiny.rs`, `src/rendezvous_mediator.rs` |
 | Stable one-time password changed only by explicit refresh or length change | `src/tiny.rs`, `src/ipc.rs`, `src/server/connection.rs`, `flutter/lib/models/server_model.dart`, `flutter/lib/desktop/pages/desktop_setting_page.dart` |
 | Home page hides local ID/network state while retaining the password | `flutter/lib/common.dart`, `flutter/lib/desktop/pages/desktop_home_page.dart`, `flutter/lib/models/server_model.dart`, `src/lang/cn.rs`, `src/lang/en.rs` |
 | Win7 title bar retains Home and Settings navigation | `flutter/lib/desktop/pages/desktop_tab_page.dart`, `flutter/lib/desktop/widgets/tabbar_widget.dart`, `flutter/lib/desktop/pages/desktop_home_page.dart` |
@@ -56,16 +63,16 @@ remains available on the Win7-compatible interface.
 | `Cargo.toml` | Adds the `rustdesk-tiny` feature and Legacy Windows version-resource identity. |
 | `rust-toolchain.toml` | Pins Rust 1.75 and `x86_64-pc-windows-msvc`. |
 | `src/lib.rs` | Exposes the Tiny policy module behind the feature. |
-| `src/tiny.rs` | Owns branding, hard settings, persistent one-time-password policy, always-enabled direct access, strict address parsing, Tiny command validation and tests. |
+| `src/tiny.rs` | Owns branding, hard settings, persistent one-time-password policy, direct access enabled by default, strict address parsing, Tiny command validation and tests. It does not expose an externally managed listener command. |
 | `src/core_main.rs` | Initializes Legacy before Windows bootstrap and implements validated interactive/silent install and update commands with reliable exit codes. |
 | `src/client.rs` | Rejects outgoing targets that are not numeric IPv4/IPv6 plus a non-zero port. |
-| `src/rendezvous_mediator.rs` | Replaces rendezvous/relay operation with a self-managing direct listener on `0.0.0.0:<configured-port>` and feeds accepted streams into the shared 1.3.7 server implementation. The listener owns its full lifecycle: it retries binding every second while the configured port is unavailable and rebuilds itself when the configured port changes, so listener changes take effect without any external orchestration (no service or process restart, no dependency on p2premote). |
+| `src/rendezvous_mediator.rs` | Replaces rendezvous/relay operation with the existing RustDesk 1.3.7 `direct_server`, preserving upstream binding, retry, port-change and `stop-service` behavior without p2premote orchestration. |
 | `src/server/connection.rs` | Prevents successful session teardown from rotating the Tiny password. |
 | `src/common.rs` | Disables NAT, rendezvous latency and update checks in Tiny builds. |
 | `src/main.rs` | Skips startup NAT and rendezvous checks. |
 | `src/flutter_ffi.rs` | Applies Legacy identity and Tiny policy before exposing state to Flutter. |
-| `src/ipc.rs` | Adds validated listener IPC and routes explicit password refresh through persistent Tiny state. |
-| `src/platform/windows.rs` | Manages the independent Windows service, propagates listener state, keeps restarts idempotent and prevents silent upgrades from launching GUI/tray processes. |
+| `src/ipc.rs` | Routes explicit password refresh through persistent Tiny state. Listener IPC remains identical to upstream; Legacy does not add an external listener-control message. |
+| `src/platform/windows.rs` | Manages the independent Windows service and prevents silent upgrades from launching GUI/tray processes; server launch and listener lifecycle otherwise follow upstream. |
 | `src/lang/cn.rs`, `src/lang/en.rs` | Add the Tiny incoming-password explanation. |
 
 ## Flutter source files changed from the imported baseline
