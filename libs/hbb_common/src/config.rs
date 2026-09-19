@@ -108,7 +108,7 @@ pub const RS_PUB_KEY: &str = match option_env!("RS_PUB_KEY") {
     _ => PUBLIC_RS_PUB_KEY,
 };
 
-pub const RENDEZVOUS_PORT: i32 = 21116;
+pub const RENDEZVOUS_PORT: i32 = 21119;
 pub const RELAY_PORT: i32 = 21117;
 
 macro_rules! serde_field_string {
