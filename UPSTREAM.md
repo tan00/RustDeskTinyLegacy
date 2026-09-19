@@ -95,6 +95,7 @@ remains available on the Win7-compatible interface.
 | `libs/portable/src/main.rs` | Uses an independent extraction directory, handles locked caches, keeps the parent alive for interactive installation and propagates silent-operation exit codes. |
 | `libs/portable/src/ui.rs` | Displays setup errors when the outer installer cannot unpack or launch the embedded client. |
 | `scripts/build-windows-legacy.ps1` | Validates the pinned toolchain, installs the Win7 Flutter engine, builds the renamed application and emits the installer plus SHA-256. |
+| `.github/workflows/rustdesk-tiny-legacy.yml` | Windows-only GitHub Actions build of the installer, mirroring the RustDeskTiny pipeline (pinned Flutter 3.24.5, Rust 1.75, bridge generator 1.80.1 and vcpkg binary cache). |
 | `.gitignore`, `flutter/.gitignore` | Exclude build output while retaining frozen generated bridge sources. |
 
 Build artifacts under `target`, `flutter/build`, `.dart_tool` and `dist` are not
