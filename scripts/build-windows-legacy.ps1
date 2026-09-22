@@ -9,6 +9,34 @@ param(
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $remoteDeskRoot = Split-Path -Parent $projectRoot
+
+function Patch-FlutterGpuTextureRenderer {
+    $packageConfigPath = Join-Path $projectRoot 'flutter\\.dart_tool\\package_config.json'
+    if (-not (Test-Path -LiteralPath $packageConfigPath -PathType Leaf)) {
+        throw "Flutter package configuration is missing: $packageConfigPath"
+    }
+    $packageConfig = Get-Content -LiteralPath $packageConfigPath -Raw | ConvertFrom-Json
+    $package = @($packageConfig.packages) |
+        Where-Object { $_.name -eq 'flutter_gpu_texture_renderer' } |
+        Select-Object -First 1
+    if (-not $package) {
+        throw 'flutter_gpu_texture_renderer package was not resolved'
+    }
+    $packageRoot = ([Uri]$package.rootUri).LocalPath
+    $headerPath = Join-Path $packageRoot 'windows\\d3d11_output.h'
+    if (-not (Test-Path -LiteralPath $headerPath -PathType Leaf)) {
+        throw "flutter_gpu_texture_renderer Windows header is missing: $headerPath"
+    }
+    $text = [IO.File]::ReadAllText($headerPath)
+    if ($text -notmatch '(?m)^#include <chrono>\s*$') {
+        $lineEnding = if ($text.Contains("`r`n")) { "`r`n" } else { "`n" }
+        $updated = $text.Replace(
+            "#include <atomic>",
+            "#include <atomic>$lineEnding#include <chrono>")
+        [IO.File]::WriteAllText($headerPath, $updated, [Text.UTF8Encoding]::new($false))
+        Write-Host "Patched missing <chrono> include: $headerPath"
+    }
+}
 if ([string]::IsNullOrWhiteSpace($ToolRoot)) {
     $ToolRoot = Join-Path $remoteDeskRoot '.build-tools\rustdesk-tiny-legacy'
 }
@@ -127,6 +155,7 @@ try {
             if ($LASTEXITCODE -ne 0) {
                 throw "Flutter dependency resolution failed with exit code $LASTEXITCODE"
             }
+            Patch-FlutterGpuTextureRenderer
         }
         finally {
             Pop-Location
