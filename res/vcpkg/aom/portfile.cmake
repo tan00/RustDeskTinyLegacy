@@ -14,6 +14,7 @@ if(DEFINED ENV{USE_AOM_391})
         URL "https://aomedia.googlesource.com/aom"
         REF 8ad484f8a18ed1853c094e7d3a4e023b2a92df28 # 3.9.1
         PATCHES
+            aom-nasm-3.0.diff
             aom-uninitialized-pointer.diff
             aom-avx2.diff
             aom-install.diff
@@ -24,6 +25,7 @@ else()
         URL "https://aomedia.googlesource.com/aom"
         REF d6f30ae474dd6c358f26de0a0fc26a0d7340a84c # 3.11.0
         PATCHES
+            aom-nasm-3.0.diff
             aom-uninitialized-pointer.diff
             # aom-avx2.diff
             # Can be dropped when https://bugs.chromium.org/p/aomedia/issues/detail?id=3029 is merged into the upstream
