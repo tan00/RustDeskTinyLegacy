@@ -119,9 +119,11 @@ jobs:
           VCPKG_ROOT: C:\vcpkg
         run: |
           $log = Join-Path $env:GITHUB_WORKSPACE 'build-windows-legacy.log'
-          $output = & .\scripts\build-windows-legacy.ps1 -PythonPath python 2>&1
+          New-Item -ItemType File -Path $log -Force | Out-Null
+          & .\scripts\build-windows-legacy.ps1 -PythonPath python *> $log
           $code = $LASTEXITCODE
-          $output | Tee-Object -FilePath $log
+          $output = Get-Content -LiteralPath $log
+          $output
           if ($code -ne 0) {
             $output | Select-Object -Last 200 | ForEach-Object {
               Write-Host "::error::$($_)"
