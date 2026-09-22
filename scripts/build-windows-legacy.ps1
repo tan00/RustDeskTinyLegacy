@@ -11,7 +11,7 @@ $projectRoot = Split-Path -Parent $PSScriptRoot
 $remoteDeskRoot = Split-Path -Parent $projectRoot
 
 function Patch-FlutterGpuTextureRenderer {
-    $packageConfigPath = Join-Path $projectRoot 'flutter\\.dart_tool\\package_config.json'
+    $packageConfigPath = Join-Path $projectRoot 'flutter\.dart_tool\package_config.json'
     if (-not (Test-Path -LiteralPath $packageConfigPath -PathType Leaf)) {
         throw "Flutter package configuration is missing: $packageConfigPath"
     }
@@ -23,7 +23,7 @@ function Patch-FlutterGpuTextureRenderer {
         throw 'flutter_gpu_texture_renderer package was not resolved'
     }
     $packageRoot = ([Uri]$package.rootUri).LocalPath
-    $headerPath = Join-Path $packageRoot 'windows\\d3d11_output.h'
+    $headerPath = Join-Path $packageRoot 'windows\d3d11_output.h'
     if (-not (Test-Path -LiteralPath $headerPath -PathType Leaf)) {
         throw "flutter_gpu_texture_renderer Windows header is missing: $headerPath"
     }
